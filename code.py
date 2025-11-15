@@ -1,15 +1,6 @@
 import pandas as pd # type: ignore
-# import numpy as np
-# import statsmodels.api as sm
-# import statsmodels.formula.api as smf
-# from sklearn.model_selection import train_test_split
-# from sklearn.neighbors import KNeighborsClassifier
-# from sklearn.naive_bayes import GaussianNB
-# from sklearn.metrics import confusion_matrix, accuracy_score
-# from sklearn.preprocessing import StandardScaler
-# import matplotlib.pyplot as plt
-# import seaborn as sns
-# from ISLP import load_data
+import numpy as np # type: ignore
+
 
 
 # importing dataset into dataframes
@@ -43,8 +34,9 @@ locations64 = locations64_clean[locations64_clean['accuracy'] < 1500].copy()
 # convert date and time to month and year for filtering
 locations64['month_year'] = locations64['datetime'].dt.to_period('M')
 
-# group dataset by month for further analysis
+#----------------------------------------------------------------------------------------------------------------------------------------------
 
+# group dataset by month for further analysis
 # for simplicity, convert longitudes and latitudes into integers
 locations64['int_latitude'] = locations64['latitude'].astype(int)
 locations64['int_longitude'] = locations64['longitude'].astype(int)
@@ -59,17 +51,25 @@ location_counts = locations64.groupby(['month_year', 'int_latitude', 'int_longit
 
 # first, find out top 5 locations in each month
 # group by month then find 5 largest count
-top_5_per_month = location_counts.groupby('month_year').apply(lambda x: x.nlargest(5, 'count'), include_groups=False).reset_index(drop=True)
+top_5_per_month = (
+    location_counts
+        .sort_values(['month_year','count'], ascending=[True, False])
+        .groupby('month_year')
+        .head(5)
+        .reset_index(drop=True)
+)
 
-# then find top 5 locations per month
+print("\n==Most Visited Locations Each Month==\n")
+print(top_5_per_month)
+
+#----------------------------------------------------------------------------------------------------------------------------------------------
+
+# now find overall top 5 locations
 # use the count to find latitude & longitudes
 overall_top_5 = top_5_per_month.groupby(['int_latitude', 'int_longitude']).size().reset_index(name='monthly_top5_appearances')
 
 # sort to find the most visited locations across dataset
 overall_most_visited = overall_top_5.sort_values(by='monthly_top5_appearances',ascending=False)
 
-print("\n==Most Visited Locations Each Month==\n")
-print(top_5_per_month.to_string())
-
-print("\n==Most Visited Locations Overall==\n")
-print(overall_most_visited.to_string())
+# print("\n==Most Visited Locations Overall==\n")
+# print(overall_most_visited.to_string())
