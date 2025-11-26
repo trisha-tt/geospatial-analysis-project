@@ -37,8 +37,8 @@ locations64['int_longitude'] = locations64['longitude'].astype(int)
 
 # first, we can find out how many locations a person visited in a month
 monthly_count = locations64.groupby('month_year').size().reset_index(name='count')
-print("\n==Number of Locations visited in a Month==\n")
-print(monthly_count)
+# print("\n==Number of Locations visited in a Month==\n")
+# print(monthly_count)
 
 # find out how many times a person visits a location in a month
 location_counts = locations64.groupby(['month_year', 'int_latitude', 'int_longitude']).size().reset_index(name='count')
@@ -53,8 +53,8 @@ top_5_per_month = (
         .reset_index(drop=True)
 )
 
-print("\n==Most Visited Locations Each Month==\n")
-print(top_5_per_month)
+# print("\n==Most Visited Locations Each Month==\n")
+# print(top_5_per_month)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -123,8 +123,8 @@ top5 = (
     .reset_index(drop=True)
 )
 
-print("\n=== TOP 5 LOCATIONS PER MONTH ===\n")
-print(top5)
+# print("\n=== TOP 5 LOCATIONS PER MONTH ===\n")
+# print(top5)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -170,10 +170,10 @@ work_cluster = (
 home_coords = centroids[centroids["cluster_uid"] == home_cluster][["latitude", "longitude"]].iloc[0]
 work_coords = centroids[centroids["cluster_uid"] == work_cluster][["latitude", "longitude"]].iloc[0]
 
-print("HOME cluster:", home_cluster)
+# print("HOME cluster:", home_cluster)
 print("HOME coords:", home_coords.values)
 
-print("WORK cluster:", work_cluster)
+# print("WORK cluster:", work_cluster)
 print("WORK coords:", work_coords.values)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
