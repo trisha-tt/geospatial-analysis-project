@@ -1,3 +1,4 @@
+""" CLIENT ID 64 ANALYSIS """
 import pandas as pd # type: ignore
 import numpy as np # type: ignore
 from sklearn.cluster import DBSCAN # type: ignore
@@ -10,26 +11,7 @@ from folium.plugins import HeatMap # type: ignore
 # LOAD & CLEAN DATASET:
 
 # importing dataset into dataframes
-locations64_raw = pd.read_csv('locations/locations_64.csv', parse_dates=['datetime'])
-# locations67 = pd.read_csv('locations/locations_67.csv')
-# locations68 = pd.read_csv('locations/locations_68.csv')
-# locations69 = pd.read_csv('locations/locations_69.csv')
-# locations70 = pd.read_csv('locations/locations_70.csv')
-# locations175 = pd.read_csv('locations/locations_175.csv')
-# locations177 = pd.read_csv('locations/locations_177.csv')
-# locations179 = pd.read_csv('locations/locations_179.csv')
-# locations181 = pd.read_csv('locations/locations_181.csv')
-# locations182 = pd.read_csv('locations/locations_182.csv')
-# locations258 = pd.read_csv('locations/locations_258.csv')
-# locations269 = pd.read_csv('locations/locations_269.csv')
-# locations272 = pd.read_csv('locations/locations_272.csv')
-# locations273 = pd.read_csv('locations/locations_273.csv')
-# locations276 = pd.read_csv('locations/locations_276.csv')
-# locations328 = pd.read_csv('locations/locations_328.csv')
-# locations336 = pd.read_csv('locations/locations_336.csv')
-# locations338 = pd.read_csv('locations/locations_338.csv')
-# locations343 = pd.read_csv('locations/locations_343.csv')
-# locations344 = pd.read_csv('locations/locations_344.csv')
+locations64_raw = pd.read_csv('../locations/locations_64.csv', parse_dates=['datetime'])
 
 # clean data - drop rows with missing values
 locations64_clean = locations64_raw.dropna()
@@ -134,6 +116,8 @@ top5 = (
 print("\n=== TOP 5 LOCATIONS PER MONTH ===\n")
 print(top5)
 
+#----------------------------------------------------------------------------------------------------------------------------------------------
+
 # DATA VISUALIZATION:
 
 # creating a heatmap using folium
@@ -145,6 +129,7 @@ center_lon = df_heat["longitude"].mean()
 
 m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 
+#weighted by time spent
 df_heat_w = df_heat.copy()
 df_heat_w["weight"] = df_heat_w["time_spent"].fillna(0)
 
@@ -153,5 +138,12 @@ heat_data_weighted = df_heat_w[["latitude", "longitude", "weight"]].values.tolis
 m2 = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 HeatMap(heat_data_weighted, radius=18, blur=22, max_zoom=13).add_to(m2)
 
-m2.save("heatmap.html")
-print("Weighted heatmap (by time_spent) saved → heatmap_weighted.html")
+m2.save("./maps/heatmap64.html")
+print("weighted heatmap saved → heatmap64.html")
+
+#----------------------------------------------------------------------------------------------------------------------------------------------
+
+# FREQUENT LOCATION ANALYSIS:
+
+# find home and work locations
+
