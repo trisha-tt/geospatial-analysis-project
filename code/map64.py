@@ -18,6 +18,8 @@ from jinja2 import Template # type: ignore
 # importing dataset into dataframes
 locations64_raw = pd.read_csv('../locations/locations_64.csv', parse_dates=['datetime'])
 
+print("=== Client ID 64 Dataset ===")
+
 # clean data - drop rows with missing values
 locations64_clean = locations64_raw.dropna()
 
@@ -85,12 +87,6 @@ locations64_buckets["x"], locations64_buckets["y"] = proj.transform(locations64_
 locations64_buckets["month"] = locations64_buckets["datetime"].dt.to_period("M")
 df_list = []
 
-# for month, df_month in locations64_buckets.groupby("month"):
-#     coords = df_month[["x", "y"]].to_numpy()
-#     db = DBSCAN(eps=50, min_samples=3, metric="euclidean")  # eps in meters
-#     df_month["cluster_id"] = db.fit_predict(coords)
-#     df_list.append(df_month)
-
 for month, df_month in locations64_buckets.groupby("month"):
     coords = df_month[["x", "y"]].to_numpy()
     db = DBSCAN(eps=50, min_samples=3).fit(coords)
@@ -107,12 +103,6 @@ for month, df_month in locations64_buckets.groupby("month"):
 locations64_buckets = pd.concat(df_list)
 
 # find centroids of the clusters
-# centroids = (
-#     locations64_buckets[locations64_buckets["cluster_id"] != -1]
-#     .groupby("cluster_id")[["latitude", "longitude"]]
-#     .mean()
-#     .reset_index()
-# )
 
 centroids = (
     locations64_buckets[locations64_buckets["cluster_uid"].str.contains("_-1") == False]
