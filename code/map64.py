@@ -5,6 +5,11 @@ from sklearn.cluster import DBSCAN # type: ignore
 import pyproj # type: ignore
 import folium # type: ignore
 from folium.plugins import HeatMap # type: ignore
+from folium import features # type: ignore
+from folium.plugins import AntPath # type: ignore
+from folium import Map, Marker, Icon # type: ignore
+from folium.elements import MacroElement # type: ignore
+from jinja2 import Template # type: ignore
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -252,5 +257,42 @@ folium.Circle(
     fill_opacity=0.15,
 ).add_to(m2)
 
+# add movement sequences 
+
+# prepare coordinates for movement path
+df_seq = locations64_buckets.sort_values("datetime")
+df_seq = df_seq[df_seq["cluster_id"] != -1]
+
+coords = df_seq[["latitude", "longitude"]].values.tolist()
+
+# convert Python list to JavaScript array string
+js_coords = str([[lat, lon] for lat, lon in coords])
+
+# define the PolylineDecorator class
+arrow_js = Template("""
+{% macro script(this, kwargs) %}
+var latlngs = {{ this.coords }};
+var line = L.polyline(latlngs, {color: 'grey', weight:3, opacity:0.5}).addTo({{this._parent.get_name()}});
+var decorator = L.polylineDecorator(line, {
+    patterns: [
+        {offset: '5%', repeat: '10%', symbol: L.Symbol.arrowHead({pixelSize: 8, polygon: true, pathOptions: {color: 'blue', fillOpacity: 1}})}
+    ]
+}).addTo({{this._parent.get_name()}});
+{% endmacro %}
+""")
+
+# create PolylineDecorator element
+class PolylineDecorator(MacroElement):
+    def __init__(self, coords):
+        super().__init__()
+        self._name = 'PolylineDecorator'
+        self.coords = coords
+        self._template = arrow_js
+
+# add movement path to map
+decorator = PolylineDecorator(js_coords)
+m2.add_child(decorator)
+
+# save heatmap to html file
 m2.save("./maps/heatmap64.html")
 print("heatmap saved → heatmap64.html")
