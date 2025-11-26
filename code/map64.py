@@ -67,7 +67,6 @@ if "client_id" not in locations64_buckets.columns:
     locations64_buckets["client_id"] = locations64["client_id"].iloc[0]
 
 # calculate time spent at each bucket location
-
 locations64_buckets = locations64_buckets.sort_values("datetime")
 locations64_buckets["next_time"] = locations64_buckets["datetime"].shift(-1)
 locations64_buckets["time_spent"] = (locations64_buckets["next_time"] - locations64_buckets["datetime"]).dt.total_seconds()
@@ -81,19 +80,38 @@ locations64_buckets["x"], locations64_buckets["y"] = proj.transform(locations64_
 locations64_buckets["month"] = locations64_buckets["datetime"].dt.to_period("M")
 df_list = []
 
+# for month, df_month in locations64_buckets.groupby("month"):
+#     coords = df_month[["x", "y"]].to_numpy()
+#     db = DBSCAN(eps=50, min_samples=3, metric="euclidean")  # eps in meters
+#     df_month["cluster_id"] = db.fit_predict(coords)
+#     df_list.append(df_month)
+
 for month, df_month in locations64_buckets.groupby("month"):
     coords = df_month[["x", "y"]].to_numpy()
-    db = DBSCAN(eps=50, min_samples=3, metric="euclidean")  # eps in meters
-    df_month["cluster_id"] = db.fit_predict(coords)
+    db = DBSCAN(eps=50, min_samples=3).fit(coords)
+
+    df_month["cluster_id"] = db.labels_
+    df_month["month_str"] = df_month["month"].astype(str)
+
+    # Create UNIQUE CLUSTER IDENTIFIER
+    df_month["cluster_uid"] = df_month["month_str"] + "_" + df_month["cluster_id"].astype(str)
+
     df_list.append(df_month)
 
 # combine
 locations64_buckets = pd.concat(df_list)
 
 # find centroids of the clusters
+# centroids = (
+#     locations64_buckets[locations64_buckets["cluster_id"] != -1]
+#     .groupby("cluster_id")[["latitude", "longitude"]]
+#     .mean()
+#     .reset_index()
+# )
+
 centroids = (
-    locations64_buckets[locations64_buckets["cluster_id"] != -1]
-    .groupby("cluster_id")[["latitude", "longitude"]]
+    locations64_buckets[locations64_buckets["cluster_uid"].str.contains("_-1") == False]
+    .groupby("cluster_uid")[["latitude", "longitude"]]
     .mean()
     .reset_index()
 )
@@ -101,7 +119,7 @@ centroids = (
 # now to find top 5 locations per month
 monthly = (
     locations64_buckets[locations64_buckets["cluster_id"] != -1]
-    .groupby(["month", "cluster_id"])["time_spent"]
+    .groupby(["month", "cluster_uid"])["time_spent"]
     .sum()
     .reset_index()
 )
@@ -115,6 +133,56 @@ top5 = (
 
 print("\n=== TOP 5 LOCATIONS PER MONTH ===\n")
 print(top5)
+
+#----------------------------------------------------------------------------------------------------------------------------------------------
+
+# FREQUENT LOCATION ANALYSIS:
+
+# find home and work locations
+
+# categorize records with hour of day, day of week
+locations64_buckets["hour"] = locations64_buckets["datetime"].dt.hour
+locations64_buckets["weekday"] = locations64_buckets["datetime"].dt.weekday  # 0=Mon ... 6=Sun
+
+# add category labels to each row
+def categorize(row):
+    hr = row["hour"]
+    wd = row["weekday"]
+
+    if 21 <= hr or hr < 6:
+        return "night"
+    if 9 <= hr < 17 and wd < 5:
+        return "workday"
+    return "other"
+
+locations64_buckets["time_category"] = locations64_buckets.apply(categorize, axis=1)
+
+valid = locations64_buckets[locations64_buckets["cluster_id"] != -1]
+
+home_cluster = (
+    valid[valid["time_category"] == "night"]
+    .groupby("cluster_uid")["time_spent"]
+    .sum()
+    .sort_values(ascending=False)
+    .index[0]
+)
+
+work_cluster = (
+    valid[valid["time_category"] == "workday"]
+    .groupby("cluster_uid")["time_spent"]
+    .sum()
+    .sort_values(ascending=False)
+    .index[0]
+)
+
+home_coords = centroids[centroids["cluster_uid"] == home_cluster][["latitude", "longitude"]].iloc[0]
+work_coords = centroids[centroids["cluster_uid"] == work_cluster][["latitude", "longitude"]].iloc[0]
+
+print("HOME cluster:", home_cluster)
+print("HOME coords:", home_coords.values)
+
+print("WORK cluster:", work_cluster)
+print("WORK coords:", work_coords.values)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -138,12 +206,51 @@ heat_data_weighted = df_heat_w[["latitude", "longitude", "weight"]].values.tolis
 m2 = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 HeatMap(heat_data_weighted, radius=18, blur=22, max_zoom=13).add_to(m2)
 
+# add home and work markers on heat map
+
+df_heat = valid.copy()
+
+center_lat = df_heat["latitude"].mean()
+center_lon = df_heat["longitude"].mean()
+
+m2 = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+df_heat["weight"] = df_heat["time_spent"].fillna(0)
+heat_data_weighted = df_heat[["latitude", "longitude", "weight"]].values.tolist()
+
+HeatMap(heat_data_weighted, radius=18, blur=22, max_zoom=13).add_to(m2)
+
+# HOME marker
+folium.Marker(
+    [home_coords["latitude"], home_coords["longitude"]],
+    popup="HOME",
+    tooltip="Home",
+    icon=folium.Icon(color="blue", icon="home")
+).add_to(m2)
+
+folium.Circle(
+    [home_coords["latitude"], home_coords["longitude"]],
+    radius=100,
+    color="blue",
+    fill=True,
+    fill_opacity=0.15,
+).add_to(m2)
+
+# WORK marker
+folium.Marker(
+    [work_coords["latitude"], work_coords["longitude"]],
+    popup="WORK",
+    tooltip="Work",
+    icon=folium.Icon(color="red", icon="briefcase")
+).add_to(m2)
+
+folium.Circle(
+    [work_coords["latitude"], work_coords["longitude"]],
+    radius=100,
+    color="red",
+    fill=True,
+    fill_opacity=0.15,
+).add_to(m2)
+
 m2.save("./maps/heatmap64.html")
-print("weighted heatmap saved → heatmap64.html")
-
-#----------------------------------------------------------------------------------------------------------------------------------------------
-
-# FREQUENT LOCATION ANALYSIS:
-
-# find home and work locations
-
+print("heatmap saved → heatmap64.html")
