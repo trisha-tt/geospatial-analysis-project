@@ -4,10 +4,6 @@ import numpy as np # type: ignore
 from sklearn.cluster import DBSCAN # type: ignore
 import pyproj # type: ignore
 import folium # type: ignore
-from folium.plugins import HeatMap # type: ignore
-from folium import features # type: ignore
-from folium.plugins import AntPath # type: ignore
-from folium import Map, Marker, Icon # type: ignore
 from folium.elements import MacroElement # type: ignore
 from jinja2 import Template # type: ignore
 
@@ -89,7 +85,7 @@ df_list = []
 
 for month, df_month in locations67_buckets.groupby("month"):
     coords = df_month[["x", "y"]].to_numpy()
-    db = DBSCAN(eps=50, min_samples=3).fit(coords)
+    db = DBSCAN(eps=30, min_samples=3).fit(coords)
 
     df_month["cluster_id"] = db.labels_
     df_month["month_str"] = df_month["month"].astype(str)
