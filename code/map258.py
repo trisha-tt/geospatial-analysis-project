@@ -1,6 +1,5 @@
 """ CLIENT ID 258 ANALYSIS """
 import pandas as pd # type: ignore
-import numpy as np # type: ignore
 from sklearn.cluster import DBSCAN # type: ignore
 import pyproj # type: ignore
 import folium # type: ignore
