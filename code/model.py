@@ -134,11 +134,18 @@ label, probs = predict_location_category(dt)
 
 print("Datetime:", dt)
 print("Predicted category:", label)
-#print("Probabilities:", probs)
+print("Probabilities:", probs)
 
 dt = datetime.datetime(2024, 11, 18, 10, 30)
 label, probs = predict_location_category(dt)
 
 print("Datetime:", dt)
 print("Predicted category:", label)
-#print("Probabilities:", probs)
+print("Probabilities:", probs)
+
+dt = datetime.datetime(2024, 11, 18, 5, 30)
+label, probs = predict_location_category(dt)
+
+print("Datetime:", dt)
+print("Predicted category:", label)
+print("Probabilities:", probs)
