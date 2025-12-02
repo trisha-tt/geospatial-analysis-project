@@ -2,5 +2,5 @@
 
 to run,
 source path/to/venv/bin/activate
-cd repo/geospatial-analysis-project
+cd repo/geospatial-analysis-project/code
 python3 code.py

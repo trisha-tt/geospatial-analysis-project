@@ -6,6 +6,8 @@ import folium # type: ignore
 from folium.plugins import HeatMap # type: ignore
 from folium.elements import MacroElement # type: ignore
 from jinja2 import Template # type: ignore
+import numpy as np # type: ignore
+from scipy.spatial.distance import cdist # type: ignore
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -98,7 +100,69 @@ for month, df_month in locations68_buckets.groupby("month"):
 # combine
 locations68_buckets = pd.concat(df_list)
 
-# find centroids of the clusters
+#----------------------------------------------------------------------------------------------------------------------------------------------
+
+# POST-DBSCAN: MERGE OVERLAPPING CLUSTERS
+
+def merge_overlapping_clusters(df, distance_threshold=300):
+    '''
+    Merge clusters that are too close together (likely overlapping).
+    
+    Args:
+        df: DataFrame with cluster assignments
+        distance_threshold: Distance in meters below which clusters should be merged
+    
+    Returns:
+        df: Updated DataFrame with merged cluster IDs
+    '''
+    # Calculate initial centroids
+    centroids = (
+        df[df["cluster_uid"].str.contains("_-1") == False]
+        .groupby("cluster_uid")[["latitude", "longitude"]]
+        .mean()
+        .reset_index()
+    )
+    
+    # Project centroids to meters for distance calculation
+    proj = pyproj.Transformer.from_crs("epsg:4326", "epsg:3857", always_xy=True)
+    x, y = proj.transform(centroids["longitude"].values, centroids["latitude"].values)
+    coords_meters = np.column_stack([x, y])
+    
+    # Calculate pairwise distances
+    distances = cdist(coords_meters, coords_meters, metric='euclidean')
+    
+    # Create mapping of cluster UIDs to merge
+    cluster_mapping = {}
+    n_clusters = len(centroids)
+    
+    for i in range(n_clusters):
+        if centroids.iloc[i]["cluster_uid"] in cluster_mapping:
+            continue
+        
+        # Find all clusters within threshold distance
+        close_clusters = np.where((distances[i] > 0) & (distances[i] < distance_threshold))[0]
+        
+        if len(close_clusters) > 0:
+            # Merge all close clusters into the first one
+            primary_uid = centroids.iloc[i]["cluster_uid"]
+            for j in close_clusters:
+                secondary_uid = centroids.iloc[j]["cluster_uid"]
+                if secondary_uid not in cluster_mapping:
+                    cluster_mapping[secondary_uid] = primary_uid
+    
+    # Apply the mapping to the dataframe
+    df["cluster_uid_merged"] = df["cluster_uid"].map(cluster_mapping).fillna(df["cluster_uid"])
+    
+    return df
+
+# Apply cluster merging
+locations68_buckets = merge_overlapping_clusters(locations68_buckets, distance_threshold=300)
+
+# Update cluster_uid to use merged version
+locations68_buckets["cluster_uid"] = locations68_buckets["cluster_uid_merged"]
+locations68_buckets = locations68_buckets.drop(columns=["cluster_uid_merged"])
+
+# find centroids of the clusters (after merging)
 
 centroids = (
     locations68_buckets[locations68_buckets["cluster_uid"].str.contains("_-1") == False]
