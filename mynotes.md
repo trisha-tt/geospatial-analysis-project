@@ -1,4 +1,11 @@
-Client Notes
+### Run (on my system)
+
+to run,
+source path/to/venv/bin/activate
+cd repo/geospatial-analysis-project/code
+python3 map67.py
+
+### Client Notes
 
 ID 64:
 Portland OR
