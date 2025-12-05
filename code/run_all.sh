@@ -9,7 +9,7 @@ FAILED=0
 
 echo "Using Python executable: $PY"
 
-for f in code/*.py; do
+for f in ./code/*.py; do
   if [ ! -f "$f" ]; then
     continue
   fi
