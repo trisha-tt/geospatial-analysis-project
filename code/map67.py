@@ -3,6 +3,7 @@ import pandas as pd # type: ignore
 from sklearn.cluster import DBSCAN # type: ignore
 import pyproj # type: ignore
 import folium # type: ignore
+from folium.plugins import HeatMap # type: ignore
 from folium.elements import MacroElement # type: ignore
 from jinja2 import Template # type: ignore
 import numpy as np # type: ignore
