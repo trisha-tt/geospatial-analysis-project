@@ -36,8 +36,8 @@ locations338['int_longitude'] = locations338['longitude'].astype(int)
 
 # first, we can find out how many locations a person visited in a month
 monthly_count = locations338.groupby('month_year').size().reset_index(name='count')
-# print("\n==Number of Locations visited in a Month==\n")
-# print(monthly_count)
+print("\n==Number of Locations visited in a Month==\n")
+print(monthly_count)
 
 # find out how many times a person visits a location in a month
 location_counts = locations338.groupby(['month_year', 'int_latitude', 'int_longitude']).size().reset_index(name='count')
@@ -52,8 +52,8 @@ top_5_per_month = (
         .reset_index(drop=True)
 )
 
-# print("\n==Most Visited Locations Each Month==\n")
-# print(top_5_per_month)
+print("\n==Most Visited Locations Each Month==\n")
+print(top_5_per_month)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -122,8 +122,8 @@ top5 = (
     .reset_index(drop=True)
 )
 
-# print("\n=== TOP 5 LOCATIONS PER MONTH ===\n")
-# print(top5)
+print("\n=== TOP 5 LOCATIONS PER MONTH ===\n")
+print(top5)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -181,35 +181,26 @@ print("WORK coords:", work_coords.values)
 
 # creating a heatmap using folium
 
+# prep data for heatmap
 df_heat = locations338_buckets[locations338_buckets["cluster_id"] != -1].copy()
-
-center_lat = df_heat["latitude"].mean()
-center_lon = df_heat["longitude"].mean()
-
-m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
-
-#weighted by time spent
-df_heat_w = df_heat.copy()
-df_heat_w["weight"] = df_heat_w["time_spent"].fillna(0)
-
-heat_data_weighted = df_heat_w[["latitude", "longitude", "weight"]].values.tolist()
-
-m2 = folium.Map(location=[center_lat, center_lon], zoom_start=12)
-HeatMap(heat_data_weighted, radius=18, blur=22, max_zoom=13).add_to(m2)
-
-# add home and work markers on heat map
-
-df_heat = valid.copy()
-
-center_lat = df_heat["latitude"].mean()
-center_lon = df_heat["longitude"].mean()
-
-m2 = folium.Map(location=[center_lat, center_lon], zoom_start=12)
-
 df_heat["weight"] = df_heat["time_spent"].fillna(0)
+
+center_lat = df_heat["latitude"].mean()
+center_lon = df_heat["longitude"].mean()
+
+# weighted by time spent
 heat_data_weighted = df_heat[["latitude", "longitude", "weight"]].values.tolist()
 
-HeatMap(heat_data_weighted, radius=18, blur=22, max_zoom=13).add_to(m2)
+m2 = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+HeatMap(
+    heat_data_weighted,
+    radius=18,
+    blur=22,
+    max_zoom=13
+).add_to(m2)
+
+# add home and work markers on heat map
 
 # HOME marker
 folium.Marker(
@@ -243,18 +234,12 @@ folium.Circle(
     fill_opacity=0.15,
 ).add_to(m2)
 
-# add movement sequences 
-
-# prepare coordinates for movement path
+# add movement path arrows
 df_seq = locations338_buckets.sort_values("datetime")
 df_seq = df_seq[df_seq["cluster_id"] != -1]
-
 coords = df_seq[["latitude", "longitude"]].values.tolist()
+js_coords = str(coords)
 
-# convert Python list to JavaScript array string
-js_coords = str([[lat, lon] for lat, lon in coords])
-
-# define the PolylineDecorator class
 arrow_js = Template("""
 {% macro script(this, kwargs) %}
 var latlngs = {{ this.coords }};
@@ -267,7 +252,7 @@ var decorator = L.polylineDecorator(line, {
 {% endmacro %}
 """)
 
-# create PolylineDecorator element
+# define the PolylineDecorator class
 class PolylineDecorator(MacroElement):
     def __init__(self, coords):
         super().__init__()
@@ -275,7 +260,6 @@ class PolylineDecorator(MacroElement):
         self.coords = coords
         self._template = arrow_js
 
-# add movement path to map
 decorator = PolylineDecorator(js_coords)
 m2.add_child(decorator)
 
