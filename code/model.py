@@ -47,6 +47,9 @@ def process_user(path, k=6):
     df_buckets['hour'] = df_buckets['time_bucket'].dt.hour
     df_buckets['weekday'] = df_buckets['time_bucket'].dt.weekday
     df_buckets['time_spent'] = 30
+    df_buckets["is_weekend"] = df_buckets["weekday"].isin([5, 6]).astype(int)
+    df_buckets["is_workhour"] = df_buckets["hour"].between(9, 17).astype(int)   # 9am–5pm
+    df_buckets["is_sleephour"] = df_buckets["hour"].between(0, 5).astype(int)   # midnight–5am
 
     # identify home cluster (night + early morning)
     night_data = df_buckets[(df_buckets['hour'] >= 21) | (df_buckets['hour'] < 8)]
@@ -63,28 +66,17 @@ def process_user(path, k=6):
         if not work_data.empty:
             work_counts = work_data.groupby('state')['time_spent'].sum().sort_values(ascending=False)
         
+            work_cluster = None
             for cid in work_counts.index:
                 if cid != home_cluster:
                     work_cluster = cid
                     break
-                else:
-                    work_cluster = None
-        else:
-            work_cluster = None
 
-    # Label all clusters
-    labels = {s: 'other' for s in range(k)}
-    labels[work_cluster] = 'work'
-    labels[home_cluster] = 'home'
-    
+    # label all clusters
     labels = {s: 'other' for s in range(k)}
     labels[home_cluster] = 'home'
-
-    if work_cluster is not None:
+    if work_cluster is not None and work_cluster != home_cluster:
         labels[work_cluster] = 'work'
-    else:
-        # pure time-based work override later
-        pass
 
     df_buckets['state_label'] = df_buckets['state'].map(labels)
     
@@ -99,8 +91,8 @@ def process_user(path, k=6):
 print("Client 64 Clustering: ")  
 locations64_buckets, _ = process_user('../locations/locations_64.csv')
 
-print("Client 181 Clustering: ")  
-locations181_buckets, _ = process_user('../locations/locations_181.csv')
+print("Client 182 Clustering: ")  
+locations182_buckets, _ = process_user('../locations/locations_182.csv')
 
 print("Client 272 Clustering: ")  
 locations272_buckets, _ = process_user('../locations/locations_272.csv')
@@ -114,7 +106,7 @@ locations273_buckets, _ = process_user('../locations/locations_273.csv')
 
 locations_all = pd.concat([
     locations64_buckets,
-    locations181_buckets,
+    locations182_buckets,
     locations272_buckets,
     locations273_buckets
 ], ignore_index=True)
@@ -124,54 +116,101 @@ locations_all = pd.concat([
 # NAIVE BAYES MODEL: 
 # P(state_label | hour, weekday)
 
-# tabulate counts
-count_table = (
-    locations_all
-    .groupby(['hour', 'weekday', 'state_label'])
-    .size()
-    .unstack(fill_value=0)
-)
 
-# laplace smoothing
-count_table += 1
+# build probability tables with Laplace smoothing
+feature_cols = ["hour", "weekday", "is_weekend", "is_workhour", "is_sleephour"]
+states = ['home', 'work', 'other']
 
-# convert counts to probabilities
-prob_table = count_table.div(count_table.sum(axis=1), axis=0)
+prob_tables = {}
+
+for feat in feature_cols:
+    # count occurrences of state_label for each feature value
+    counts = (
+        locations_all
+        .groupby([feat, "state_label"])
+        .size()
+        .unstack(fill_value=0)
+    )
+
+    # Laplace smoothing: add 1 to all counts
+    counts = counts + 1
+
+    # ensure all states are present as columns
+    for s in states:
+        if s not in counts.columns:
+            counts[s] = 1
+
+    # reorder columns
+    counts = counts[states]
+
+    # normalize per feature value
+    probs = counts.div(counts.sum(axis=1), axis=0)
+
+    prob_tables[feat] = probs
 
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
 # PREDICTION FUNCTION:
 
-def predict_location_category(dt):
+def predict_location_category(dt, prob_tables):
     """
-    predict general location category given a datetime for all users.
-    returns:
-        state_label: human-friendly label ('home', 'work', 'other')
-        probabilities: P(state_label | hour, weekday)
+    Predict state_label ('home','work','other') given datetime features.
+    Uses Naive Bayes multiplication of all feature-based conditional probabilities.
     """
+    # --- extract features from datetime ---
     hr = dt.hour
-    wd = dt.weekday()
-    
-    # # Force home for early morning
-    # if hr < 9:
-    #     return 'home', {'home': 1.0, 'work': 0.0, 'other': 0.0}
+    wd = dt.weekday
+    is_weekend = 1 if wd in [5, 6] else 0
+    is_workhour = 1 if 9 <= hr <= 17 else 0
+    is_sleephour = 1 if 0 <= hr <= 5 else 0
 
-    # Select row for hour & weekday
-    row = prob_table.loc[(hr, wd)]
-    state_label = row.idxmax()
-    probs = row.to_dict()
+    feats = {
+        "hour": hr,
+        "weekday": wd,
+        "is_weekend": is_weekend,
+        "is_workhour": is_workhour,
+        "is_sleephour": is_sleephour
+    }
 
-    return state_label, probs
+    log_probs = {}
+
+    for state in ['home', 'work', 'other']:
+        log_prob_state = 0.0
+        for feat, value in feats.items():
+            table = prob_tables[feat]
+
+            # fallback if value is missing in the table
+            if value not in table.index:
+                val = 1 / len(states)  # uniform small probability
+            else:
+                val = table.loc[value, state]
+
+            # add log-probability
+            log_prob_state += np.log(val)
+
+        log_probs[state] = log_prob_state
+
+    # convert log-probabilities to normal probabilities
+    max_log = max(log_probs.values())
+    exp_probs = {k: np.exp(v - max_log) for k, v in log_probs.items()}
+    Z = sum(exp_probs.values())
+    final_probs = {k: v / Z for k, v in exp_probs.items()}
+
+    # pick the best label
+    best_state = max(final_probs, key=final_probs.get)
+
+    return best_state, final_probs
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
 # DEMO:
-print("=====================================================") 
+
+print("=====================================================================") 
 print("Model Demonstration: ")  
 
 dt = datetime.datetime(2024, 11, 18, 4, 30)
-label, probs = predict_location_category(dt)
+label, probs = predict_location_category(dt, prob_tables)
 
 print("Datetime:", dt)
 print("Predicted category:", label)
@@ -179,7 +218,7 @@ print("Probabilities:", probs)
 print()
 
 dt = datetime.datetime(2024, 11, 18, 10, 30)
-label, probs = predict_location_category(dt)
+label, probs = predict_location_category(dt, prob_tables)
 
 print("Datetime:", dt)
 print("Predicted category:", label)
@@ -187,7 +226,7 @@ print("Probabilities:", probs)
 print()
 
 dt = datetime.datetime(2024, 11, 18, 18, 30)
-label, probs = predict_location_category(dt)
+label, probs = predict_location_category(dt, prob_tables)
 
 print("Datetime:", dt)
 print("Predicted category:", label)
@@ -196,6 +235,11 @@ print("Probabilities:", probs)
 #----------------------------------------------------------------------------------------------------------------------------------------------
 # EVALUATE MODEL:
 
+print("=====================================================================") 
+print("Model Evaluation: ")  
+
+print("Confusion Matrix:")
+print("Plotting confusion matrix...")
 # build confusion matrix
 true_labels = []
 pred_labels = []
@@ -205,7 +249,7 @@ for _, row in locations_all.iterrows():
     dt = row['time_bucket']        # your evaluation timestamp
     true = row['state_label']      # ground truth
     
-    pred, _ = predict_location_category(dt)
+    pred, _ = predict_location_category(dt,prob_tables)
     
     true_labels.append(true)
     pred_labels.append(pred)
@@ -219,45 +263,53 @@ disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
 fig, ax = plt.subplots(figsize=(6, 6))
 disp.plot(ax=ax, cmap='Blues', colorbar=True)
 plt.title("Confusion Matrix")
-plt.show()
+#plt.show()
+fig.savefig("model_result/confusion_matrix.png", dpi=300, bbox_inches='tight')
+plt.close(fig)
+print("Confusion Matrix saved to 'model_result/confusion_matrix.png'")
+print()
 
 # calculate overall accuracy
 accuracy = accuracy_score(true_labels, pred_labels)
-print("Overall Accuracy:", round(accuracy, 4))
+print("Overall Model Accuracy:", round(accuracy, 4))
+print()
 
 # detailed classification report
-print(classification_report(true_labels, pred_labels, labels=labels))
+print("Classification Report:")
+print(classification_report(true_labels, pred_labels, labels=labels, zero_division=0))
+print()
 
 # hourly accuracy
 locations_all['predicted'] = pred_labels
 locations_all['correct'] = (locations_all['predicted'] == locations_all['state_label'])
 hourly_accuracy = locations_all.groupby('hour')['correct'].mean()
+print("Hourly Accuracy:")
 print(hourly_accuracy)
+print()
 
 # split predicted results back into user datasets
-n64 = len(locations64_buckets)
-n181 = len(locations181_buckets)
+n64  = len(locations64_buckets)
+n182 = len(locations182_buckets)
 n272 = len(locations272_buckets)
 n273 = len(locations273_buckets)
 
-p64 = pred_labels[:n64]
-p181 = pred_labels[n64:n64+n181]
-p272 = pred_labels[n64+n181:n64+n181+n272]
-p273 = pred_labels[n64+n181+n272:]
+p64  = pred_labels[:n64]
+p182 = pred_labels[n64:n64+n182]
+p272 = pred_labels[n64+n182:n64+n182+n272]
+p273 = pred_labels[n64+n182+n272:]
 
-locations64_buckets['predicted'] = p64
-locations181_buckets['predicted'] = p181
+locations64_buckets['predicted']  = p64
+locations182_buckets['predicted'] = p182
 locations272_buckets['predicted'] = p272
 locations273_buckets['predicted'] = p273
-
 
 # user-wise accuracy
 def compute_user_accuracy(df, name):
     acc = (df['predicted'] == df['state_label']).mean()
     print(f"{name} accuracy: {acc:.4f}")
-    
 
-compute_user_accuracy(locations64_buckets, "User 64")
-compute_user_accuracy(locations181_buckets, "User 181")
+print("User-wise Accuracy:")
+compute_user_accuracy(locations64_buckets,  "User 64")
+compute_user_accuracy(locations182_buckets, "User 182")
 compute_user_accuracy(locations272_buckets, "User 272")
 compute_user_accuracy(locations273_buckets, "User 273")
