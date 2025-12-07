@@ -5,6 +5,11 @@ import pandas as pd # type: ignore
 import numpy as np # type: ignore
 from sklearn.cluster import KMeans # type: ignore
 import datetime # type: ignore
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay # type: ignore
+import matplotlib.pyplot as plt # type: ignore
+from sklearn.metrics import accuracy_score # type: ignore
+from sklearn.metrics import classification_report # type: ignore
+
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -133,6 +138,7 @@ count_table += 1
 # convert counts to probabilities
 prob_table = count_table.div(count_table.sum(axis=1), axis=0)
 
+
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
 # PREDICTION FUNCTION:
@@ -186,3 +192,72 @@ label, probs = predict_location_category(dt)
 print("Datetime:", dt)
 print("Predicted category:", label)
 print("Probabilities:", probs)
+
+#----------------------------------------------------------------------------------------------------------------------------------------------
+# EVALUATE MODEL:
+
+# build confusion matrix
+true_labels = []
+pred_labels = []
+
+# loop through all combined rows
+for _, row in locations_all.iterrows():
+    dt = row['time_bucket']        # your evaluation timestamp
+    true = row['state_label']      # ground truth
+    
+    pred, _ = predict_location_category(dt)
+    
+    true_labels.append(true)
+    pred_labels.append(pred)
+
+# create confusion matrix
+labels = ['home', 'work', 'other']
+cm = confusion_matrix(true_labels, pred_labels, labels=labels)
+
+# plot confusion matrix
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+fig, ax = plt.subplots(figsize=(6, 6))
+disp.plot(ax=ax, cmap='Blues', colorbar=True)
+plt.title("Confusion Matrix")
+plt.show()
+
+# calculate overall accuracy
+accuracy = accuracy_score(true_labels, pred_labels)
+print("Overall Accuracy:", round(accuracy, 4))
+
+# detailed classification report
+print(classification_report(true_labels, pred_labels, labels=labels))
+
+# hourly accuracy
+locations_all['predicted'] = pred_labels
+locations_all['correct'] = (locations_all['predicted'] == locations_all['state_label'])
+hourly_accuracy = locations_all.groupby('hour')['correct'].mean()
+print(hourly_accuracy)
+
+# split predicted results back into user datasets
+n64 = len(locations64_buckets)
+n181 = len(locations181_buckets)
+n272 = len(locations272_buckets)
+n273 = len(locations273_buckets)
+
+p64 = pred_labels[:n64]
+p181 = pred_labels[n64:n64+n181]
+p272 = pred_labels[n64+n181:n64+n181+n272]
+p273 = pred_labels[n64+n181+n272:]
+
+locations64_buckets['predicted'] = p64
+locations181_buckets['predicted'] = p181
+locations272_buckets['predicted'] = p272
+locations273_buckets['predicted'] = p273
+
+
+# user-wise accuracy
+def compute_user_accuracy(df, name):
+    acc = (df['predicted'] == df['state_label']).mean()
+    print(f"{name} accuracy: {acc:.4f}")
+    
+
+compute_user_accuracy(locations64_buckets, "User 64")
+compute_user_accuracy(locations181_buckets, "User 181")
+compute_user_accuracy(locations272_buckets, "User 272")
+compute_user_accuracy(locations273_buckets, "User 273")
