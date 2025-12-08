@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt # type: ignore
 from sklearn.metrics import accuracy_score # type: ignore
 from sklearn.metrics import classification_report # type: ignore
 
+print("Model 1: Individuals living in Portland/Vancouver area")
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -264,9 +265,9 @@ fig, ax = plt.subplots(figsize=(6, 6))
 disp.plot(ax=ax, cmap='Blues', colorbar=True)
 plt.title("Confusion Matrix")
 #plt.show()
-fig.savefig("model_result/confusion_matrix.png", dpi=300, bbox_inches='tight')
+fig.savefig("model_result/confusion_matrix_model1.png", dpi=300, bbox_inches='tight')
 plt.close(fig)
-print("Confusion Matrix saved to 'model_result/confusion_matrix.png'")
+print("Confusion Matrix saved to 'model_result/confusion_matrix_model1.png'")
 print()
 
 # calculate overall accuracy
