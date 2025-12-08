@@ -6,6 +6,17 @@ import folium # type: ignore
 from folium.plugins import HeatMap # type: ignore
 from folium.elements import MacroElement # type: ignore
 from jinja2 import Template # type: ignore
+import sys # for redirecting print output
+
+#----------------------------------------------------------------------------------------------------------------------------------------------
+
+# OUTPUT REDIRECTION (uncomment to save print output to file):
+with open("analysis/report68.txt", "w") as f:
+    sys.stdout = f
+    
+# open file and redirect stdout
+logfile = open("analysis/report68.txt", "w")
+sys.stdout = logfile
 
 #----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -169,6 +180,8 @@ work_cluster = (
 home_coords = centroids[centroids["cluster_uid"] == home_cluster][["latitude", "longitude"]].iloc[0]
 work_coords = centroids[centroids["cluster_uid"] == work_cluster][["latitude", "longitude"]].iloc[0]
 
+print()
+
 # print("HOME cluster:", home_cluster)
 print("HOME coords:", home_coords.values)
 
@@ -265,4 +278,9 @@ m2.add_child(decorator)
 
 # save heatmap to html file
 m2.save("./maps/heatmap68.html")
+
+sys.stdout = sys.__stdout__
+logfile.close()
+
 print("heatmap saved → heatmap68.html")
+print("analytics report saved → report68.txt")
