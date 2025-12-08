@@ -11,6 +11,10 @@ ID 64:
 Portland OR
 WFH
 
+ID 67:
+Spokane WA
+WFH
+
 ID 68:
 Spokane WA
 WFH
@@ -29,7 +33,7 @@ WFH, but travels alot
 
 ID 177:
 Downer Grove IL
-works at an office, very close to home
+WFH
 
 ID 179:
 Forth Worth TX
@@ -37,7 +41,7 @@ WFH
 
 ID 181:
 Mercer Island WA
-works at an office, very close to home
+WFH
 
 ID 182:
 Portland OR
@@ -49,7 +53,7 @@ WFH
 
 ID 269:
 Cottage Lake WA
-works at an office, very close to home
+WFH
 
 ID 272:
 Vancouver WA
@@ -83,7 +87,7 @@ ID 344:
 Sunriver OR
 WFH
 
-6/20 - office
-14/20 - WFH
+3/20 - office
+17/20 - WFH
 
 Portland/Vancouver - 64, 182, 272, 273
