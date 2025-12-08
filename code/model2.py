@@ -33,10 +33,10 @@ def process_user(path, k=6):
     df['time_bucket'] = df['datetime'].dt.floor('30min')
     df_buckets = df.groupby('time_bucket').first().reset_index()
 
-    # filter to remove noise from outside the Portland/Vancouver area
+    # filter to remove noise from outside the Spokane area
     df_buckets = df_buckets[
-        (df_buckets.latitude > 45.0) & (df_buckets.latitude < 49.0) &
-        (df_buckets.longitude > -123.0) & (df_buckets.longitude < -122.0)
+        (df_buckets.latitude > 47.3) & (df_buckets.latitude < 47.7) &
+        (df_buckets.longitude > -117.5) & (df_buckets.longitude < -117.3)
     ]
 
     # KMeans clustering
